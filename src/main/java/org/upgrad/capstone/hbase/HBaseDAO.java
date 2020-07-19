@@ -1,11 +1,11 @@
 package org.upgrad.capstone.hbase;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.upgrad.capstone.domain.CardLookup;
 import org.upgrad.capstone.domain.CardTransaction;
+import org.upgrad.capstone.domain.ZipCodePosIdMap;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -15,6 +15,14 @@ import java.util.Objects;
  */
 public class HBaseDAO {
 
+    final String regex = "\\d+";
+
+    /**
+     * Looks up card details in card_lookup table
+     * @param cardTransaction
+     * @return
+     * @throws IOException
+     */
     public CardLookup lookupCardDetails(CardTransaction cardTransaction) throws IOException {
         Connection connection = HBaseConnection.getHbaseConnection();
         Table table = null;
@@ -23,9 +31,6 @@ public class HBaseDAO {
             Get cardId = new Get(Bytes.toBytes(cardTransaction.getCardId()));
             table = connection.getTable(TableName.valueOf("card_lookup"));
             Result result = table.get(cardId);
-            //System.out.println(result);
-            //System.out.println("Row key : " + new String(result.getRow()));
-            //System.out.println(result.getColumnLatestCell(Bytes.toBytes("postcode"), Bytes.toBytes("postcode")));
             String postCode = Bytes.toString(result.getValue(Bytes.toBytes("postcode"), Bytes.toBytes("postcode")));
             String ucl = Bytes.toString(result.getValue(Bytes.toBytes("ucl"), Bytes.toBytes("ucl")));
             String transactionDate = Bytes.toString(result.getValue(Bytes.toBytes("postcode"), Bytes.toBytes("transaction_dt")));
@@ -33,7 +38,7 @@ public class HBaseDAO {
             cardLookup.setCardId(cardTransaction.getCardId());
             cardLookup.setUcl(Objects.nonNull(ucl) ? Double.parseDouble(ucl) : 0.0d);
             cardLookup.setPostCode(Objects.nonNull(postCode) ? postCode : null);
-            cardLookup.setTransactionDate(Objects.nonNull(transactionDate) ? Long.parseLong(transactionDate) : 0L);
+            cardLookup.setTransactionDate(Objects.nonNull(transactionDate) && transactionDate.matches(regex) ? Long.parseLong(transactionDate) : 0L);
             cardLookup.setScore(Objects.nonNull(score) ? Integer.parseInt(score) : 0);
         } catch (IOException e) {
             throw e;
@@ -43,21 +48,26 @@ public class HBaseDAO {
         return cardLookup;
     }
 
-    public void saveCardLookupDetails(CardTransaction cardTransaction) throws IOException {
+    /**
+     * Saves card lookup details
+     * @param cardLookup
+     * @throws IOException
+     */
+    public void saveCardLookupDetails(CardLookup cardLookup) throws IOException {
         Connection connection = HBaseConnection.getHbaseConnection();
         Table table = null;
         try {
-            table = connection.getTable(TableName.valueOf("card_lookup_test"));
-            Put put = new Put(Bytes.toBytes(cardTransaction.getCardId()));
+            table = connection.getTable(TableName.valueOf("card_lookup"));
+            Put put = new Put(Bytes.toBytes(cardLookup.getCardId()));
             put.addColumn(
                 Bytes.toBytes("postcode"),
                 Bytes.toBytes("postcode"),
-                Bytes.toBytes(cardTransaction.getPostCode())
+                Bytes.toBytes(cardLookup.getPostCode())
             );
             put.addColumn(
                 Bytes.toBytes("postcode"),
                 Bytes.toBytes("transaction_dt"),
-                Bytes.toBytes(cardTransaction.getTransactionDate())
+                Bytes.toBytes(cardLookup.getTransactionDate())
             );
             table.put(put);
         } catch (IOException e) {
@@ -67,11 +77,16 @@ public class HBaseDAO {
         }
     }
 
+    /**
+     * Saves card transaction in card_transaction table
+     * @param cardTransaction
+     * @throws IOException
+     */
     public void saveCardTransaction(CardTransaction cardTransaction) throws IOException {
         Connection connection = HBaseConnection.getHbaseConnection();
         Table table = null;
         try {
-            table = connection.getTable(TableName.valueOf("card_transaction_test"));
+            table = connection.getTable(TableName.valueOf("card_transactions"));
             Put put = new Put(Bytes.toBytes(cardTransaction.getCardId()));
             put.addColumn(
                 Bytes.toBytes("card_id"),
@@ -114,5 +129,38 @@ public class HBaseDAO {
         } finally {
             table.close();
         }
+    }
+
+    /**
+     * Gets zip code details for a particular zip code passed
+     * @param zipCode
+     * @return
+     * @throws IOException
+     */
+    public ZipCodePosIdMap getZipCodePosIdMap(String zipCode) throws IOException {
+        Connection connection = HBaseConnection.getHbaseConnection();
+        Table table = null;
+        ZipCodePosIdMap zipCodePosIdMap = new ZipCodePosIdMap();
+        try {
+            Get zipCodeBytes = new Get(Bytes.toBytes(zipCode));
+            table = connection.getTable(TableName.valueOf("zip_code_pos_id_map"));
+            Result result = table.get(zipCodeBytes);
+            String latitude = Bytes.toString(result.getValue(Bytes.toBytes("position_details"), Bytes.toBytes("latitude")));
+            String longitude = Bytes.toString(result.getValue(Bytes.toBytes("position_details"), Bytes.toBytes("longitude")));
+            String city = Bytes.toString(result.getValue(Bytes.toBytes("position_details"), Bytes.toBytes("city")));
+            String stateName = Bytes.toString(result.getValue(Bytes.toBytes("position_details"), Bytes.toBytes("state_name")));
+            String posId = Bytes.toString(result.getValue(Bytes.toBytes("position_details"), Bytes.toBytes("pos_id")));
+            zipCodePosIdMap.setZipCode(zipCode);
+            zipCodePosIdMap.setLatitude(Objects.nonNull(latitude) ? Double.parseDouble(latitude) : 0.0d);
+            zipCodePosIdMap.setLongitude(Objects.nonNull(longitude) ? Double.parseDouble(longitude) : 0.0d);
+            zipCodePosIdMap.setCity(city);
+            zipCodePosIdMap.setStateName(stateName);
+            zipCodePosIdMap.setPostId(posId);
+        } catch (IOException e) {
+            throw e;
+        } finally {
+            table.close();
+        }
+        return zipCodePosIdMap;
     }
 }
