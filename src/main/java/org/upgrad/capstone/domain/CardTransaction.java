@@ -18,7 +18,9 @@ public class CardTransaction {
     private String posId;
 
     @SerializedName("transaction_dt")
-    private String transactionDate;
+    private String transactionDateStr;
+
+    private long transactionDate;
 
     private String status;
 
@@ -62,11 +64,19 @@ public class CardTransaction {
         this.posId = posId;
     }
 
-    public String getTransactionDate() {
+    public String getTransactionDateStr() {
+        return transactionDateStr;
+    }
+
+    public void setTransactionDateStr(String transactionDateStr) {
+        this.transactionDateStr = transactionDateStr;
+    }
+
+    public long getTransactionDate() {
         return transactionDate;
     }
 
-    public void setTransactionDate(String transactionDate) {
+    public void setTransactionDate(long transactionDate) {
         this.transactionDate = transactionDate;
     }
 
